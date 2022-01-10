@@ -97,7 +97,7 @@ pub struct LevelData {
     pub data_packs: DataPacks,
 
     #[serde(rename = "Player")]
-    pub player: Player,
+    pub player: Option<Player>,
 
     #[serde(rename = "Version")]
     pub minecraft_version: MinecraftVersion,
@@ -128,8 +128,10 @@ pub struct LevelData {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WorldGenSettings {
-    pub generate_features: bool,
+    pub bonus_chest: bool,
     pub dimensions: HashMap<String, DimensionGenSettings>,
+    pub generate_features: bool,
+    pub seed: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
