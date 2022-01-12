@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Level {
@@ -423,4 +423,93 @@ pub struct MinecraftVersion {
 
     #[serde(rename = "Name")]
     pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ChunkData {
+    #[serde(rename = "Heightmaps")]
+    pub height_maps: HashMap<String, Vec<i64>>,
+
+    pub structures: Structures,
+
+    pub block_entities: Vec<nbt::Value>,
+    pub block_ticks: Vec<nbt::Value>,
+    pub fluid_ticks: Vec<nbt::Value>,
+
+    #[serde(rename = "PostProcessing")]
+    pub post_processing: Vec<Vec<nbt::Value>>,
+
+    pub sections: Vec<Section>,
+
+    #[serde(rename = "DataVersion")]
+    pub data_version: i32,
+
+    #[serde(rename = "InhabitiedTime")]
+    pub inhabitied_time: Option<i64>,
+
+    #[serde(rename = "isLightOn")]
+    pub is_light_on: Option<bool>,
+
+    #[serde(rename = "LastUpdate")]
+    pub last_update: i64,
+
+    #[serde(rename = "xPos")]
+    pub x_pos: i32,
+
+    #[serde(rename = "yPos")]
+    pub y_pos: i32,
+
+    #[serde(rename = "zPos")]
+    pub z_pos: i32,
+
+    #[serde(rename = "Status")]
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Section {
+    pub biomes: Biomes,
+    pub block_states: Option<BlockStates>,
+
+    #[serde(rename = "SkyLight")]
+    pub sky_light: Option<Vec<i8>>,
+
+    #[serde(rename = "Y")]
+    pub y: i8,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Biomes {
+    pub palette: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct BlockStates {
+    pub palette: Vec<BlockType>,
+    pub data: Option<Vec<i64>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct BlockType {
+    #[serde(rename = "Name")]
+    pub name: String,
+
+    #[serde(default, rename = "Properties")]
+    pub properties: BTreeMap<String, String>,
+}
+
+impl BlockType {
+    pub fn new(name: &str) -> BlockType {
+        BlockType {
+            name: name.into(),
+            properties: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Structures {
+    #[serde(rename = "References")]
+    pub references: HashMap<String, Vec<i64>>,
+    pub starts: HashMap<String, nbt::Value>,
 }

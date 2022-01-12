@@ -1,18 +1,26 @@
-use std::fs::File;
 use std::path::PathBuf;
+use std::{fs::File, time::SystemTime};
 
-use anvil_region::position::{RegionChunkPosition, RegionPosition};
-use anvil_region::provider::{FolderRegionProvider, RegionProvider};
 use structopt::StructOpt;
 
+mod chunk;
+mod region;
 mod types;
 
-use types::Level;
+use region::Region;
+use types::{BlockType, Level};
 
 #[derive(Debug, StructOpt)]
 enum Opt {
     LevelToJSON(ConvertOpt),
     JSONToLevel(ConvertOpt),
+    Region(FileOpt),
+    NewRegion(FileOpt),
+}
+
+#[derive(Debug, StructOpt)]
+struct FileOpt {
+    file: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -57,23 +65,32 @@ fn json_to_level(opt: &ConvertOpt) {
     //  serde_json::to_writer_pretty(file, &level).unwrap();
 }
 
+fn region(opt: &FileOpt) {
+    let file = File::open(&opt.file).unwrap();
+    let _ = Region::from_reader(0, 0, file).unwrap();
+}
+
+fn new_region(opt: &FileOpt) {
+    let mut region = Region::new(0, 0);
+    region.set_block(0, 0, 0, &BlockType::new("minecraft:jungle_planks"));
+    let mut file = File::create(&opt.file).unwrap();
+    region
+        .to_writer(
+            &mut file,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32,
+        )
+        .unwrap();
+}
+
 fn main() {
     let opt = Opt::from_args();
     match opt {
         Opt::LevelToJSON(o) => level_to_json(&o),
         Opt::JSONToLevel(o) => json_to_level(&o),
+        Opt::Region(o) => region(&o),
+        Opt::NewRegion(o) => new_region(&o),
     }
-    //let mut file = File::open("void/level.dat").unwrap();
-
-    //    let blob = Blob::from_gzip_reader(&mut file).unwrap();
-    //jlet level: Level = nbt::de::from_gzip_reader(file).unwrap();
-    //println!("{:#?}", level);
-
-    let provider = FolderRegionProvider::new("void/region");
-    let region_position = RegionPosition::from_chunk_position(0, 0);
-    let region_chunk_position = RegionChunkPosition::from_chunk_position(0, 0);
-
-    let mut region = provider.get_region(region_position).unwrap();
-
-    //  println!("{:#?}", chunk_compound_tag);
 }
