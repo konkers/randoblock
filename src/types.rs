@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_repr::*;
 use std::collections::{BTreeMap, HashMap};
 
@@ -428,7 +428,7 @@ pub struct MinecraftVersion {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ChunkData {
     #[serde(rename = "Heightmaps")]
-    pub height_maps: HashMap<String, Vec<i64>>,
+    pub height_maps: Option<HeightMaps>,
 
     pub structures: Structures,
 
@@ -467,11 +467,29 @@ pub struct ChunkData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct HeightMaps {
+    #[serde(rename = "MOTION_BLOCKING", serialize_with = "option_i64_array")]
+    pub motion_blocking: Option<Vec<i64>>,
+
+    #[serde(
+        rename = "MOTION_BLOCKING_NO_LEAVES",
+        serialize_with = "option_i64_array"
+    )]
+    pub motion_blocking_no_leaves: Option<Vec<i64>>,
+
+    #[serde(rename = "OCEAN_FLOOR", serialize_with = "option_i64_array")]
+    pub ocean_floor: Option<Vec<i64>>,
+
+    #[serde(rename = "WORLD_SURFACE", serialize_with = "option_i64_array")]
+    pub world_surface: Option<Vec<i64>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Section {
     pub biomes: Biomes,
     pub block_states: Option<BlockStates>,
 
-    #[serde(rename = "SkyLight")]
+    #[serde(rename = "SkyLight", serialize_with = "option_i8_array")]
     pub sky_light: Option<Vec<i8>>,
 
     #[serde(rename = "Y")]
@@ -486,6 +504,7 @@ pub struct Biomes {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlockStates {
     pub palette: Vec<BlockType>,
+    #[serde(default, serialize_with = "option_i64_array")]
     pub data: Option<Vec<i64>>,
 }
 
@@ -512,4 +531,24 @@ pub struct Structures {
     #[serde(rename = "References")]
     pub references: HashMap<String, Vec<i64>>,
     pub starts: HashMap<String, nbt::Value>,
+}
+
+fn option_i64_array<S>(val: &Option<Vec<i64>>, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match &val {
+        None => ser.serialize_none(),
+        Some(v) => nbt::i64_array(v, ser),
+    }
+}
+
+fn option_i8_array<S>(val: &Option<Vec<i8>>, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match &val {
+        None => ser.serialize_none(),
+        Some(v) => nbt::i8_array(v, ser),
+    }
 }

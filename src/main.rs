@@ -6,6 +6,7 @@ use structopt::StructOpt;
 mod chunk;
 mod region;
 mod types;
+mod util;
 
 use region::Region;
 use types::{BlockType, Level};
@@ -72,7 +73,7 @@ fn region(opt: &FileOpt) {
 
 fn new_region(opt: &FileOpt) {
     let mut region = Region::new(0, 0);
-    region.set_block(0, 0, 0, &BlockType::new("minecraft:jungle_planks"));
+    region.set_block(0, 0, 0, &BlockType::new("minecraft:oak_planks"));
     let mut file = File::create(&opt.file).unwrap();
     region
         .to_writer(

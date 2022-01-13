@@ -8,6 +8,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use crate::chunk::Chunk;
 use crate::types::{BlockType, ChunkData};
+use crate::util::round_up_to;
 
 pub struct Region {
     x: i32,
@@ -102,13 +103,6 @@ impl Region {
         Ok(Chunk::from_data(data))
     }
 
-    fn round_up_to(val: u64, div: u64) -> u64 {
-        match val % div {
-            0 => val,
-            x => val + div - x,
-        }
-    }
-
     pub fn to_writer<W: Write + Seek>(&self, w: &mut W, timestamp: u32) -> Result<()> {
         let mut locations = Vec::new();
         let mut cur_sector = 2;
@@ -134,9 +128,11 @@ impl Region {
                     w.seek(SeekFrom::Start(offset))?;
                     w.write_u32::<BigEndian>(len as u32)?;
 
+                    let size = round_up_to(len + 4, 4096);
+                    cur_sector += size / 4096;
                     locations.push(ChunkLocation {
                         offset: offset,
-                        size: Self::round_up_to(len + 4, 4096),
+                        size: round_up_to(len + 4, 4096),
                     });
                 }
             }

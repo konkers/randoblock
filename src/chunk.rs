@@ -3,6 +3,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     hash::Hash,
     os::windows::prelude::OsStrExt,
+    ptr::NonNull,
     thread::available_parallelism,
 };
 
@@ -10,6 +11,7 @@ use anyhow::{anyhow, Result};
 use num_traits::PrimInt;
 
 use crate::types::{self, BlockType, ChunkData};
+use crate::util::div_round_up;
 
 #[derive(Clone, Debug)]
 struct PaletteEntry {
@@ -67,6 +69,12 @@ impl Palette {
         assert!(self.entries[index].ref_cnt > 0);
         self.entries[index].ref_cnt -= 1;
     }
+
+    fn lookup(&self, index: u16) -> &BlockType {
+        let index = index as usize;
+        assert!(index < self.entries.len());
+        &self.entries[index].ty
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -93,11 +101,11 @@ impl Section {
 
     fn from_data(data: &types::Section) -> Section {
         match &data.block_states {
-            None => Self::new(),
+            None => Section::new(),
             Some(states) => match &states.data {
-                None => Self::new(),
-                Some(block_data) => {
-                    let blocks = Self::decode_data(states.palette.len(), &block_data);
+                None => Section::new(),
+                Some(blocks_data) => {
+                    let blocks = Self::decode_data(states.palette.len(), blocks_data);
                     let palette =
                         (&blocks)
                             .into_iter()
@@ -162,6 +170,19 @@ impl Section {
         data[data_index] = long_val as i64;
     }
 
+    fn get_block(&self, x: i32, y: i32, z: i32) -> &BlockType {
+        assert!(0 <= x && x < 16);
+        assert!(0 <= y && y < 16);
+        assert!(0 <= z && z < 16);
+
+        let index = match &self.blocks {
+            None => 0,
+            Some(blocks) => blocks[(y * (16 * 16) + z * 16 + x) as usize],
+        };
+
+        self.palette.lookup(index)
+    }
+
     fn set_block(&mut self, x: i32, y: i32, z: i32, block_type: &BlockType) {
         assert!(0 <= x && x < 16);
         assert!(0 <= y && y < 16);
@@ -171,7 +192,7 @@ impl Section {
             self.blocks = Some(vec![0u16; 4096]);
         }
 
-        let block = &mut self.blocks.as_mut().unwrap()[(y * 64 + z * 16 + x) as usize];
+        let block = &mut self.blocks.as_mut().unwrap()[(y * (16 * 16) + z * 16 + x) as usize];
         self.palette.dec_block(*block);
         *block = self.palette.inc_block(block_type);
     }
@@ -198,10 +219,16 @@ impl Section {
             }
         };
 
+        let sky_light = if y == 1 {
+            Some(vec![0xffu8; 2048].iter().map(|x| *x as i8).collect())
+        } else {
+            None
+        };
+
         types::Section {
             biomes,
             block_states: Some(types::BlockStates { palette, data }),
-            sky_light: None, // Hoping that Minecraft will recalc this if missing.
+            sky_light,
             y,
         }
     }
@@ -238,7 +265,7 @@ impl Chunk {
         }
         Chunk {
             data: ChunkData {
-                height_maps: HashMap::new(),
+                height_maps: None,
                 structures: types::Structures {
                     references: HashMap::new(),
                     starts: HashMap::new(),
@@ -250,7 +277,7 @@ impl Chunk {
                 sections,
                 data_version: 2865,
                 inhabitied_time: None,
-                is_light_on: Some(true),
+                is_light_on: Some(false),
                 last_update: 0,
                 x_pos: x,
                 y_pos: -4,
@@ -276,6 +303,18 @@ impl Chunk {
         }
     }
 
+    pub fn get_block(&self, x: i32, y: i32, z: i32) -> &BlockType {
+        // Adjust for where the bottom of the chunk lies.
+        let y = y - self.data.y_pos * 16;
+        assert!(y >= 0);
+        let section_index = (y as usize) / 16;
+        assert!(section_index < 24);
+
+        let section_y = y % 16;
+
+        self.sections[section_index].get_block(x, section_y, z)
+    }
+
     pub fn set_block(&mut self, x: i32, y: i32, z: i32, block_type: &BlockType) {
         // Adjust for where the bottom of the chunk lies.
         let y = y - self.data.y_pos * 16;
@@ -294,6 +333,9 @@ impl Chunk {
             data.sections[i] = self.sections[i].to_nbt((data.y_pos + i as i32) as i8);
         }
 
+        // Ensure that lighting and heightmaps are recalculated.
+        data.is_light_on = Some(false);
+        data.height_maps = None;
         data
     }
 }
